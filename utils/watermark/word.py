@@ -72,21 +72,33 @@ class WordWatermark(WatermarkBase):
             # 获取文档主要部分
             main_part = doc.part
             
-            # 创建一个新的自定义XML部分
+            # 创建一个新的自定义XML部分，使用标准的 Office 命名空间
             custom_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-            <watermark xmlns="http://schemas.custom.org/watermark/1.0">
-                <data>{self._hide_in_property(json.dumps(core_data))}</data>
-            </watermark>"""
+            <w:watermark xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                <w:data>{self._hide_in_property(json.dumps(core_data))}</w:data>
+            </w:watermark>"""
             
-            # 添加自定义XML部分
-            custom_part = main_part._package.parts.add_part(
-                '/customXml/item1.xml',
-                content_type='application/xml',
-                blob=custom_xml.encode('utf-8')
+            # 使用 document_part 添加自定义XML部分
+            from docx.opc.part import Part
+            from docx.opc.constants import CONTENT_TYPE as CT
+            from docx.opc.packuri import PackURI
+            
+            # 创建 PackURI 对象
+            uri = PackURI('/customXml/item1.xml')
+            
+            # 创建新的部分
+            part = Part(
+                uri,  # 使用 PackURI 对象
+                CT.XML,
+                custom_xml.encode('utf-8'),
+                main_part.package  # 添加 package 引用
             )
             
+            # 添加到文档部分集合
+            main_part.package.parts.append(part)
+            
             # 添加关系
-            rel_id = main_part.relate_to(custom_part, 'http://schemas.custom.org/watermark')
+            rel_id = main_part.relate_to(part, 'http://schemas.custom.org/watermark')
             
             # 记录位置
             self.watermark_locations.append(('rel', rel_id))
@@ -97,22 +109,33 @@ class WordWatermark(WatermarkBase):
     def _embed_in_custom_xml(self, doc, core_data):
         """在自定义XML中嵌入水印"""
         try:
-            # 创建自定义XML
-            custom_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-            <watermark:settings xmlns:watermark="http://schemas.custom.org/watermark/1.0">
-                <watermark:data>{self._hide_in_property(json.dumps(core_data))}</watermark:data>
-                <watermark:hash>{hashlib.sha256(json.dumps(core_data).encode()).hexdigest()}</watermark:hash>
-            </watermark:settings>"""
+            # 获取文档主要部分
+            main_part = doc.part
             
-            # 添加到文档
-            settings_part = doc.part._package.parts.add_part(
+            # 创建自定义XML，使用标准的 Office 命名空间
+            custom_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                <w:watermarkData>{self._hide_in_property(json.dumps(core_data))}</w:watermarkData>
+                <w:hash>{hashlib.sha256(json.dumps(core_data).encode()).hexdigest()}</w:hash>
+            </w:settings>"""
+            
+            # 使用 document_part 添加自定义XML部分
+            from docx.opc.part import Part
+            from docx.opc.constants import CONTENT_TYPE as CT
+            
+            # 创建新的部分
+            part = Part(
+                main_part.package.parts,  # 使用 parts 集合
                 '/customXml/item2.xml',
-                content_type='application/xml',
-                blob=custom_xml.encode('utf-8')
+                CT.XML,
+                custom_xml.encode('utf-8')
             )
             
+            # 添加到文档部分集合
+            main_part.package.parts.append(part)  # 使用 main_part 而不是 doc.part
+            
             # 记录位置
-            self.watermark_locations.append(('xml', settings_part.partname))
+            self.watermark_locations.append(('xml', part.partname))
             
         except Exception as e:
             print(f"Error embedding in custom xml: {str(e)}")
