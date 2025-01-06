@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文本加密解密</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .nav {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .nav a {
+            margin-right: 20px;
+            text-decoration: none;
+            color: #333;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            background-color: #f0f0f0;
+        }
+
+        .nav a:hover {
+            background-color: #007bff;
+            color: white;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .section {
+            background-color: white;
+            margin: 20px 0;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            color: #444;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        h3 {
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .result-area {
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            padding: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/text">文本加密解密</a>
+        <a href="/file">文件加密解密</a>
+    </div>
+    
+    <h1>文本加密与解密工具</h1>
+    
+    <div class="section">
+        <h2>文本加密</h2>
+        <form id="encrypt-form" onsubmit="handleEncrypt(event)">
+            <textarea name="text" rows="4" cols="50" placeholder="输入要加密的文本"></textarea><br>
+            <input type="text" name="secret" placeholder="输入要隐藏的信息"><br>
+            <button type="submit">加密</button>
+        </form>
+    </div>
+    
+    <div class="section">
+        <h2>文本解密</h2>
+        <form id="decrypt-form" onsubmit="handleDecrypt(event)">
+            <textarea name="text" rows="4" cols="50" placeholder="输入包含隐藏信息的文本"></textarea><br>
+            <button type="submit">解密</button>
+        </form>
+    </div>
+    
+    <div id="result-section" class="section" style="display: none;">
+        <h3>操作结果 (<span id="action-type"></span>):</h3>
+        <textarea id="result-area" rows="4" cols="50" readonly></textarea>
+    </div>
+
+    <script>
+    async function handleEncrypt(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        
+        try {
+            const response = await fetch('/encrypt', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            showResult(data.result, data.action);
+        } catch (error) {
+            showResult('操作失败: ' + error.message, '错误');
+        }
+    }
+
+    async function handleDecrypt(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        
+        try {
+            const response = await fetch('/decrypt', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            showResult(data.result, data.action);
+        } catch (error) {
+            showResult('操作失败: ' + error.message, '错误');
+        }
+    }
+
+    function showResult(result, action) {
+        const resultSection = document.getElementById('result-section');
+        const actionType = document.getElementById('action-type');
+        const resultArea = document.getElementById('result-area');
+        
+        resultSection.style.display = 'block';
+        actionType.textContent = action;
+        resultArea.value = result;
+    }
+    </script>
+</body>
+</html> 
