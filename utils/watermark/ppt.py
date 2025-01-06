@@ -29,8 +29,8 @@ class PPTWatermark(WatermarkBase):
             # 2. 在幻灯片布局中嵌入
             self._embed_in_layouts(prs, core_data)
             
-            # 3. 在演示文稿注释中嵌入
-            self._embed_in_comments(prs, core_data)
+            # 3. 在主题属性中嵌入
+            self._embed_in_theme(prs, core_data)
             
             # 保存文档
             output_path = os.path.join(os.path.dirname(file_path), 
@@ -76,19 +76,21 @@ class PPTWatermark(WatermarkBase):
         except Exception as e:
             print(f"Error embedding in layouts: {str(e)}")
 
-    def _embed_in_comments(self, prs, core_data):
-        """在演示文稿注释中嵌入水印"""
+    def _embed_in_theme(self, prs, core_data):
+        """在演示文稿主题中嵌入水印"""
         try:
-            # 在第一张幻灯片添加隐藏注释
-            if len(prs.slides) > 0:
-                slide = prs.slides[0]
-                comment = slide.notes_slide.notes_text_frame
-                comment.text = self._hide_in_property(json.dumps(core_data))
-            
-            print(f"Embedded in comments: {core_data}")  # 调试信息
+            # 获取主题部分
+            for part in prs.part.package.parts:
+                if part.partname.startswith('/ppt/theme/'):
+                    # 在主题XML中添加自定义属性
+                    theme_element = part.element
+                    theme_element.set('customData', 
+                        self._hide_in_property(json.dumps(core_data)))
+                    theme_element.set('id', 
+                        hashlib.sha256(json.dumps(core_data).encode()).hexdigest()[:8])
             
         except Exception as e:
-            print(f"Error embedding in comments: {str(e)}")
+            print(f"Error embedding in theme: {str(e)}")
 
     def extract_watermark(self, file_path):
         """从PPT文档中提取水印"""
