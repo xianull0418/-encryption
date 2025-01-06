@@ -1,60 +1,219 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>零宽字符加密解密</title>
-    <style>
-        .section {
-            margin: 20px 0;
-            padding: 20px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-    </style>
+    <title>文档水印系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
-    <h1>零宽字符加密与解密工具</h1>
-    
-    <!-- 文本加密解密部分 -->
-    <div class="section">
-        <h2>文本处理</h2>
-        <form method="POST" action="/encrypt">
-            <h3>文本加密</h3>
-            <textarea name="text" rows="4" cols="50" placeholder="输入要加密的文本"></textarea><br>
-            <input type="text" name="secret" placeholder="输入要隐藏的信息"><br>
-            <button type="submit">加密</button>
-        </form>
-        
-        <form method="POST" action="/decrypt">
-            <h3>文本解密</h3>
-            <textarea name="text" rows="4" cols="50" placeholder="输入包含隐藏信息的文本"></textarea><br>
-            <button type="submit">解密</button>
-        </form>
-    </div>
-    
-    <!-- 文件加密解密部分 -->
-    <div class="section">
-        <h2>文件处理</h2>
-        <form method="POST" action="/encrypt_file" enctype="multipart/form-data">
-            <h3>文件加密</h3>
-            <input type="file" name="file" accept=".docx,.pptx,.ppt,.pdf"><br>
-            <input type="text" name="secret" placeholder="输入要隐藏的信息"><br>
-            <button type="submit">加密文件</button>
-        </form>
-        
-        <form method="POST" action="/decrypt_file" enctype="multipart/form-data">
-            <h3>文件解密</h3>
-            <input type="file" name="file" accept=".docx,.pptx,.ppt,.pdf"><br>
-            <button type="submit">解密文件</button>
-        </form>
-    </div>
-    
-    {% if result %}
-        <div class="section">
-            <h3>操作结果 ({{ action }}):</h3>
-            <textarea rows="4" cols="50" readonly>{{ result }}</textarea>
+    <div class="container">
+        <header>
+            <h1>文档水印系统</h1>
+            <p class="subtitle">支持 Word、PPT、PDF 文档的隐水印添加与验证</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('embed')">添加水印</button>
+            <button class="tab-btn" onclick="switchTab('verify')">验证水印</button>
         </div>
-    {% endif %}
+
+        <div id="embed" class="tab-content active">
+            <form id="embed-form" onsubmit="handleEmbed(event)">
+                <div class="file-upload">
+                    <label for="embed-file">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <span>选择或拖拽文件</span>
+                        <small>支持 .docx, .pptx, .pdf 格式</small>
+                    </label>
+                    <input type="file" id="embed-file" name="file" accept=".docx,.pptx,.pdf" required>
+                </div>
+                <div id="embed-preview" class="file-preview"></div>
+                
+                <div class="form-group">
+                    <label for="watermark-content">水印内容</label>
+                    <input type="text" id="watermark-content" name="content" required
+                           placeholder="输入要嵌入的水印内容">
+                </div>
+                
+                <div class="form-group">
+                    <label for="user-info">用户信息</label>
+                    <input type="text" id="user-info" name="user" required
+                           placeholder="输入用户信息（如：姓名、部门等）">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" required
+                           placeholder="输入用于加密水印的密码">
+                </div>
+
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-magic"></i> 添加水印
+                </button>
+            </form>
+        </div>
+
+        <div id="verify" class="tab-content">
+            <form id="verify-form" onsubmit="handleVerify(event)">
+                <div class="file-upload">
+                    <label for="verify-file">
+                        <i class="fas fa-search"></i>
+                        <span>选择要验证的文件</span>
+                        <small>支持 .docx, .pptx, .pdf 格式</small>
+                    </label>
+                    <input type="file" id="verify-file" name="file" accept=".docx,.pptx,.pdf" required>
+                </div>
+                <div id="verify-preview" class="file-preview"></div>
+                
+                <div class="form-group">
+                    <label for="verify-password">密码</label>
+                    <input type="password" id="verify-password" name="password" required
+                           placeholder="输入验证密码">
+                </div>
+
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-check-circle"></i> 验证水印
+                </button>
+            </form>
+        </div>
+
+        <div id="result" class="result-section" style="display: none;">
+            <h3>处理结果</h3>
+            <div class="result-content"></div>
+        </div>
+    </div>
+
+    <script>
+    // 文件处理相关函数
+    function handleFileSelect(input, previewId) {
+        const preview = document.getElementById(previewId);
+        preview.innerHTML = '';
+        
+        if (input.files && input.files[0]) {
+            const file = input.files[0];
+            const card = createFileCard(file);
+            preview.appendChild(card);
+        }
+    }
+
+    function createFileCard(file) {
+        const card = document.createElement('div');
+        card.className = 'file-card';
+        card.innerHTML = `
+            <i class="${getFileIcon(file.name)} file-icon"></i>
+            <div class="file-info">
+                <div class="file-name">${file.name}</div>
+                <div class="file-size">${formatFileSize(file.size)}</div>
+            </div>
+            <div class="progress">
+                <div class="progress-bar"></div>
+            </div>
+        `;
+        return card;
+    }
+
+    // 水印添加处理
+    async function handleEmbed(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        
+        try {
+            showProgress('embed-preview', 50);
+            
+            const response = await fetch('/api/embed_watermark', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            showProgress('embed-preview', 100);
+            
+            if (data.success) {
+                // 下载处理后的文件
+                downloadFile(data.file_url, data.filename);
+                showResult('success', '水印添加成功！');
+            } else {
+                showResult('error', data.message);
+            }
+            
+        } catch (error) {
+            showProgress('embed-preview', 0);
+            showResult('error', `操作失败: ${error.message}`);
+        }
+    }
+
+    // 水印验证处理
+    async function handleVerify(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        
+        try {
+            showProgress('verify-preview', 50);
+            
+            const response = await fetch('/api/verify_watermark', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            showProgress('verify-preview', 100);
+            
+            if (data.success) {
+                showResult('success', formatWatermarkInfo(data.watermark));
+            } else {
+                showResult('error', data.message);
+            }
+            
+        } catch (error) {
+            showProgress('verify-preview', 0);
+            showResult('error', `操作失败: ${error.message}`);
+        }
+    }
+
+    // 辅助函数
+    function showResult(type, message) {
+        const resultSection = document.getElementById('result');
+        const resultContent = resultSection.querySelector('.result-content');
+        
+        resultSection.style.display = 'block';
+        resultContent.className = `result-content ${type}`;
+        resultContent.innerHTML = message;
+    }
+
+    function formatWatermarkInfo(watermark) {
+        return `
+            <div class="watermark-info">
+                <h4>水印信息</h4>
+                <p><strong>内容：</strong>${watermark.content}</p>
+                <p><strong>用户：</strong>${watermark.user}</p>
+                <p><strong>时间：</strong>${new Date(watermark.timestamp * 1000).toLocaleString()}</p>
+                <p><strong>IP：</strong>${watermark.ip}</p>
+            </div>
+        `;
+    }
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('embed-file').addEventListener('change', function() {
+            handleFileSelect(this, 'embed-preview');
+        });
+        
+        document.getElementById('verify-file').addEventListener('change', function() {
+            handleFileSelect(this, 'verify-preview');
+        });
+    });
+    </script>
 </body>
 </html> 

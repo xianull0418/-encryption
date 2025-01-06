@@ -6,6 +6,67 @@
     <title>文件加密解密</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/file.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        /* 添加文件预览样式 */
+        .file-preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .file-card {
+            width: 120px;
+            text-align: center;
+            background: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .file-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+            color: #007bff;
+        }
+
+        .file-name {
+            font-size: 12px;
+            word-break: break-all;
+            margin-top: 5px;
+        }
+
+        .remove-file {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
+            cursor: pointer;
+        }
+
+        .upload-progress {
+            width: 100%;
+            height: 4px;
+            background: #eee;
+            margin-top: 10px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #007bff;
+            width: 0;
+            transition: width 0.3s ease;
+        }
+    </style>
 </head>
 <body>
     <div class="nav">
@@ -19,12 +80,30 @@
         <h2>文件加密</h2>
         <form id="encrypt-file-form" onsubmit="handleFileEncrypt(event)">
             <div class="file-upload">
-                <label for="encrypt-file">点击或拖拽文件到此处上传（支持多文件）</label>
-                <input id="encrypt-file" type="file" name="file" multiple accept=".docx,.pptx,.ppt,.pdf">
+                <label for="encrypt-file">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span>点击或拖拽文件到此处上传</span>
+                    <small>支持 .docx, .pptx, .pdf 格式</small>
+                </label>
+                <input id="encrypt-file" type="file" name="file" multiple accept=".docx,.pptx,.pdf" onchange="handleFileSelect(this, 'encrypt-file-preview')">
             </div>
-            <div id="encrypt-file-list" class="file-list"></div>
-            <input type="text" name="secret" placeholder="输入要隐藏的信息">
-            <button type="submit">加密文件</button>
+            <div id="encrypt-file-preview" class="file-preview"></div>
+            
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" name="username" required
+                       placeholder="输入您的用户名">
+            </div>
+            
+            <div class="form-group">
+                <label for="hidden-content">要隐藏的信息</label>
+                <input type="text" id="hidden-content" name="content" required
+                       placeholder="输入要隐藏在文件中的信息">
+            </div>
+
+            <button type="submit" class="btn-primary">
+                <i class="fas fa-magic"></i> 加密文件
+            </button>
         </form>
     </div>
     
@@ -32,11 +111,17 @@
         <h2>文件解密</h2>
         <form id="decrypt-file-form" onsubmit="handleFileDecrypt(event)">
             <div class="file-upload">
-                <label for="decrypt-file">点击或拖拽文件到此处上传（支持多文件）</label>
-                <input id="decrypt-file" type="file" name="file" multiple accept=".docx,.pptx,.ppt,.pdf">
+                <label for="decrypt-file">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span>点击或拖拽文件到此处上传</span>
+                    <small>支持 .docx, .pptx, .pdf 格式</small>
+                </label>
+                <input id="decrypt-file" type="file" name="file" multiple accept=".docx,.pptx,.pdf" onchange="handleFileSelect(this, 'decrypt-file-preview')">
             </div>
-            <div id="decrypt-file-list" class="file-list"></div>
-            <button type="submit">解密文件</button>
+            <div id="decrypt-file-preview" class="file-preview"></div>
+            <button type="submit" class="btn-primary">
+                <i class="fas fa-search"></i> 提取隐藏信息
+            </button>
         </form>
     </div>
     
@@ -48,108 +133,114 @@
     </div>
 
     <script>
-    // 文件列表管理
-    function updateFileList(files, listId) {
-        const fileList = document.getElementById(listId);
-        fileList.innerHTML = '';
+    // 文件选择处理
+    function handleFileSelect(input, previewId) {
+        const files = input.files;
+        const preview = document.getElementById(previewId);
         
+        // 创建一个新的 FileList
+        const dt = new DataTransfer();
+        
+        // 添加现有文件
+        if (input.files.length > 0) {
+            Array.from(input.files).forEach(file => dt.items.add(file));
+        }
+        
+        // 更新文件预览
+        updateFilePreview(files, previewId);
+        
+        // 更新 input 的文件列表
+        input.files = dt.files;
+    }
+
+    // 更新文件预览
+    function updateFilePreview(files, previewId) {
+        const preview = document.getElementById(previewId);
+        
+        // 不清空现有预览，而是添加新文件
         Array.from(files).forEach((file, index) => {
-            const fileItem = document.createElement('div');
-            fileItem.className = 'file-item';
-            fileItem.innerHTML = `
-                <span class="file-name">${file.name}</span>
-                <span class="file-remove" onclick="removeFile(${index}, '${listId}')">&times;</span>
-            `;
-            fileList.appendChild(fileItem);
+            // 检查是否已经存在相同文件
+            const existingFile = Array.from(preview.children).find(
+                child => child.querySelector('.file-name').textContent === file.name
+            );
+            
+            if (!existingFile) {
+                const card = document.createElement('div');
+                card.className = 'file-card';
+                card.innerHTML = `
+                    <i class="${getFileIcon(file.name)} file-icon"></i>
+                    <div class="file-name">${file.name}</div>
+                    <div class="remove-file" onclick="removeFile('${previewId}', '${file.name}')">&times;</div>
+                    <div class="upload-progress">
+                        <div class="progress-bar"></div>
+                    </div>
+                `;
+                preview.appendChild(card);
+            }
         });
     }
 
-    function removeFile(index, listId) {
-        const input = document.querySelector(`#${listId.replace('-list', '')}`);
+    // 修改文件选择处理
+    function handleFileSelect(input, previewId) {
+        const files = input.files;
+        const preview = document.getElementById(previewId);
+        
+        // 创建一个新的 FileList
         const dt = new DataTransfer();
-        const files = Array.from(input.files);
-        files.splice(index, 1);
-        files.forEach(file => dt.items.add(file));
+        
+        // 添加现有文件
+        if (input.files.length > 0) {
+            Array.from(input.files).forEach(file => dt.items.add(file));
+        }
+        
+        // 更新文件预览
+        updateFilePreview(files, previewId);
+        
+        // 更新 input 的文件列表
         input.files = dt.files;
-        updateFileList(input.files, listId);
     }
 
-    // 文件上传处理
-    document.getElementById('encrypt-file').addEventListener('change', function(e) {
-        updateFileList(this.files, 'encrypt-file-list');
-    });
-
-    document.getElementById('decrypt-file').addEventListener('change', function(e) {
-        updateFileList(this.files, 'decrypt-file-list');
-    });
-
-    async function handleFileEncrypt(event) {
-        event.preventDefault();
-        const form = event.target;
-        const formData = new FormData(form);
+    // 修改移除文件函数
+    function removeFile(previewId, fileName) {
+        const preview = document.getElementById(previewId);
+        const inputId = previewId.replace('-preview', '');
+        const input = document.getElementById(inputId);
         
-        try {
-            const response = await fetch('/encrypt_file', {
-                method: 'POST',
-                body: formData
-            });
-            
-            // 检查是否是文件下载响应
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/octet-stream')) {
-                // 处理文件下载
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = response.headers.get('content-disposition')?.split('filename=')[1] || 'encrypted_file';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                a.remove();
-                showResult('文件加密成功，已开始下载', '加密');
-            } else {
-                // 处理错误信息
-                const data = await response.json();
-                showResult(data.result, data.action);
-            }
-        } catch (error) {
-            showResult('操作失败: ' + error.message, '错误');
+        // 创建新的 FileList，不包含被移除的文件
+        const dt = new DataTransfer();
+        Array.from(input.files)
+            .filter(file => file.name !== fileName)
+            .forEach(file => dt.items.add(file));
+        
+        // 更新 input 的文件列表
+        input.files = dt.files;
+        
+        // 移除预览卡片
+        const cardToRemove = Array.from(preview.children).find(
+            card => card.querySelector('.file-name').textContent === fileName
+        );
+        if (cardToRemove) {
+            preview.removeChild(cardToRemove);
         }
     }
 
-    async function handleFileDecrypt(event) {
-        event.preventDefault();
-        const form = event.target;
-        const formData = new FormData(form);
-        
-        try {
-            const response = await fetch('/decrypt_file', {
-                method: 'POST',
-                body: formData
-            });
-            
-            const data = await response.json();
-            showResult(data.result, data.action);
-        } catch (error) {
-            showResult('操作失败: ' + error.message, '错误');
+    // 获取文件图标
+    function getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        switch(ext) {
+            case 'docx': return 'far fa-file-word';
+            case 'pptx':
+            case 'ppt': return 'far fa-file-powerpoint';
+            case 'pdf': return 'far fa-file-pdf';
+            default: return 'far fa-file';
         }
     }
 
-    function showResult(result, action) {
-        const resultSection = document.getElementById('result-section');
-        const actionType = document.getElementById('action-type');
-        const resultArea = document.getElementById('result-area');
-        
-        resultSection.style.display = 'block';
-        actionType.textContent = action;
-        resultArea.value = result;
-    }
-
-    // 添加文件拖放功能
+    // 文件拖放处理
     function setupFileDrop(inputId) {
         const dropZone = document.querySelector(`label[for="${inputId}"]`);
         const input = document.getElementById(inputId);
+        const previewId = inputId + '-preview';
 
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropZone.addEventListener(eventName, preventDefaults, false);
@@ -178,16 +269,210 @@
 
         dropZone.addEventListener('drop', handleDrop, false);
 
-        function handleDrop(e) {
+        function handleDrop(e, inputId) {
             const dt = e.dataTransfer;
-            const files = dt.files;
-            input.files = files;
+            const input = document.getElementById(inputId);
+            const previewId = inputId + '-preview';
+            
+            // 创建新的 FileList
+            const newDt = new DataTransfer();
+            
+            // 添加现有文件
+            if (input.files.length > 0) {
+                Array.from(input.files).forEach(file => newDt.items.add(file));
+            }
+            
+            // 添加新拖放的文件
+            Array.from(dt.files).forEach(file => newDt.items.add(file));
+            
+            // 更新 input 的文件列表
+            input.files = newDt.files;
+            
+            // 更新预览
+            updateFilePreview(dt.files, previewId);
         }
     }
 
-    // 初始化文件拖放
-    setupFileDrop('encrypt-file');
-    setupFileDrop('decrypt-file');
+    // 添加水印相关函数
+    function toggleWatermark() {
+        const watermarkInputs = document.getElementById('watermark-inputs');
+        watermarkInputs.style.display = 
+            document.getElementById('enable-watermark').checked ? 'block' : 'none';
+    }
+
+    // 文件加密处理
+    async function handleFileEncrypt(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        const files = Array.from(form.querySelector('input[type="file"]').files);
+        const preview = document.getElementById('encrypt-file-preview');
+        
+        if (files.length === 0) {
+            showResult('请选择要加密的文件', '错误');
+            return;
+        }
+        
+        try {
+            // 显示上传进度
+            files.forEach((file, index) => {
+                const progressBar = preview.children[index].querySelector('.progress-bar');
+                progressBar.style.width = '50%';
+            });
+
+            const response = await fetch('/encrypt_file', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            if (!data.result || data.result.length === 0) {
+                throw new Error('未收到处理结果');
+            }
+
+            // 处理每个文件的结果
+            let successCount = 0;
+            let errorMessages = [];
+
+            data.result.forEach((result, index) => {
+                const progressBar = preview.children[index].querySelector('.progress-bar');
+                
+                if (result.error) {
+                    progressBar.style.width = '0%';
+                    progressBar.style.backgroundColor = '#dc3545';
+                    errorMessages.push(result.error);
+                } else if (result.content && result.filename) {
+                    progressBar.style.width = '100%';
+                    successCount++;
+
+                    // 下载文件
+                    const byteCharacters = atob(result.content);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: 'application/octet-stream' });
+                    
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = URL.createObjectURL(blob);
+                    downloadLink.download = result.filename;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    URL.revokeObjectURL(downloadLink.href);
+                }
+            });
+
+            // 显示处理结果
+            if (errorMessages.length > 0) {
+                showResult(`处理完成，成功：${successCount}个，失败：${errorMessages.length}个\n${errorMessages.join('\n')}`, '部分成功');
+            } else if (successCount > 0) {
+                showResult(`成功处理 ${successCount} 个文件`, '加密完成');
+            } else {
+                showResult('没有文件被成功处理', '错误');
+            }
+
+        } catch (error) {
+            files.forEach((_, index) => {
+                const progressBar = preview.children[index].querySelector('.progress-bar');
+                progressBar.style.width = '0%';
+                progressBar.style.backgroundColor = '#dc3545';
+            });
+            showResult('操作失败: ' + error.message, '错误');
+        }
+    }
+
+    async function handleFileDecrypt(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        const files = Array.from(form.querySelector('input[type="file"]').files);
+        const preview = document.getElementById('decrypt-file-preview');
+        
+        if (files.length === 0) {
+            showResult('请选择要解密的文件', '错误');
+            return;
+        }
+        
+        try {
+            // 显示上传进度
+            files.forEach((file, index) => {
+                const progressBar = preview.children[index].querySelector('.progress-bar');
+                progressBar.style.width = '50%';
+            });
+
+            const response = await fetch('/decrypt_file', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            // 处理每个文件的结果
+            let results = [];
+            data.result.forEach((result, index) => {
+                const progressBar = preview.children[index].querySelector('.progress-bar');
+                
+                if (result.error) {
+                    progressBar.style.width = '0%';
+                    progressBar.style.backgroundColor = '#dc3545';
+                    results.push(`文件 ${files[index].name}: ${result.error}`);
+                } else if (result.content) {
+                    progressBar.style.width = '100%';
+                    // 只显示隐藏内容和用户名
+                    results.push(`文件 ${files[index].name} 中提取到的信息：
+                        隐藏内容：${result.content.content}
+                        用户名：${result.content.user}`);
+                }
+            });
+
+            // 显示所有结果
+            showResult(results.join('\n\n'), '提取结果');
+
+        } catch (error) {
+            files.forEach((_, index) => {
+                const progressBar = preview.children[index].querySelector('.progress-bar');
+                progressBar.style.width = '0%';
+                progressBar.style.backgroundColor = '#dc3545';
+            });
+            showResult('操作失败: ' + error.message, '错误');
+        }
+    }
+
+    function showResult(result, action) {
+        const resultSection = document.getElementById('result-section');
+        const actionType = document.getElementById('action-type');
+        const resultArea = document.getElementById('result-area');
+        
+        resultSection.style.display = 'block';
+        actionType.textContent = action;
+        
+        // 如果结果是对象，格式化显示
+        if (typeof result === 'object') {
+            resultArea.value = JSON.stringify(result, null, 2);
+        } else {
+            resultArea.value = result;
+        }
+        // 自动调整文本区域高度
+        resultArea.style.height = 'auto';
+        resultArea.style.height = (resultArea.scrollHeight + 5) + 'px';
+    }
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        setupFileDrop('encrypt-file');
+        setupFileDrop('decrypt-file');
+    });
     </script>
 </body>
 </html> 
